@@ -1,0 +1,88 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum StatusVenda {
+  RASCUNHO
+  CONFIRMADA
+  CANCELADA
+}
+
+enum TipoMovimentacao {
+  ENTRADA
+  SAIDA
+}
+
+model Cliente {
+  id        String   @id @default(uuid())
+  cpfCnpj   String   @unique
+  nome      String
+  email     String?
+  telefone  String?
+  ativo     Boolean  @default(true)
+  vendas    Venda[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clientes")
+}
+
+model Produto {
+  id            String                @id @default(uuid())
+  codigoSku     String                @unique
+  nome          String
+  descricao     String?
+  preco         Decimal               @db.Decimal(10, 2)
+  estoque       Int                   @default(0)
+  ativo         Boolean               @default(true)
+  itensVenda    ItemVenda[]
+  movimentacoes MovimentacaoEstoque[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@map("produtos")
+}
+
+model Venda {
+  id          String      @id @default(uuid())
+  numeroVenda Int         @default(autoincrement())
+  clienteId   String
+  cliente     Cliente     @relation(fields: [clienteId], references: [id])
+  status      StatusVenda @default(CONFIRMADA)
+  valorTotal  Decimal     @db.Decimal(10, 2)
+  itens       ItemVenda[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("vendas")
+}
+
+model ItemVenda {
+  id            String   @id @default(uuid())
+  vendaId       String
+  venda         Venda    @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produtoId     String
+  produto       Produto  @relation(fields: [produtoId], references: [id])
+  quantidade    Int
+  precoUnitario Decimal  @db.Decimal(10, 2)
+  subtotal      Decimal  @db.Decimal(10, 2)
+
+  @@map("itens_venda")
+}
+
+model MovimentacaoEstoque {
+  id         String           @id @default(uuid())
+  produtoId  String
+  produto    Produto          @relation(fields: [produtoId], references: [id])
+  tipo       TipoMovimentacao
+  quantidade Int
+  motivo     String
+  createdAt  DateTime         @default(now())
+
+  @@map("movimentacoes_estoque")
+}
