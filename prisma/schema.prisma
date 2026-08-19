@@ -1,22 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+// ---------------------------------------------
+// MODELOS DE AUTENTICAÇÃO (BETTER AUTH)
+// ---------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("user")
 }
 
-enum StatusVenda {
-  RASCUNHO
-  CONFIRMADA
-  CANCELADA
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
 }
 
-enum TipoMovimentacao {
-  ENTRADA
-  SAIDA
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  issuer                String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@map("account")
 }
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verification")
+}
+
+// ---------------------------------------------
+// MODELOS DE DOMÍNIO (ERP)
+// ---------------------------------------------
 
 model Cliente {
   id        String   @id @default(uuid())
@@ -25,10 +82,12 @@ model Cliente {
   email     String?
   telefone  String?
   ativo     Boolean  @default(true)
-  vendas    Venda[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  vendas    Venda[]
+  orders    Order[]
 
+  @@index([ativo])
   @@map("clientes")
 }
 
@@ -37,15 +96,59 @@ model Produto {
   codigoSku     String                @unique
   nome          String
   descricao     String?
+  categoria     String?
   preco         Decimal               @db.Decimal(10, 2)
   estoque       Int                   @default(0)
   ativo         Boolean               @default(true)
-  itensVenda    ItemVenda[]
-  movimentacoes MovimentacaoEstoque[]
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
+  itensVenda    ItemVenda[]
+  orderItems    OrderItem[]
+  movimentacoes MovimentacaoEstoque[]
 
+  @@index([ativo])
   @@map("produtos")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  customerId String
+  customer   Cliente     @relation(fields: [customerId], references: [id])
+  status     OrderStatus @default(CONFIRMED)
+  total      Decimal     @db.Decimal(10, 2)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  items      OrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Produto  @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(10, 2)
+  total     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  @@map("order_items")
+}
+
+enum StatusVenda {
+  PENDENTE
+  CONFIRMADA
+  CANCELADA
 }
 
 model Venda {
@@ -53,11 +156,11 @@ model Venda {
   numeroVenda Int         @default(autoincrement())
   clienteId   String
   cliente     Cliente     @relation(fields: [clienteId], references: [id])
-  status      StatusVenda @default(CONFIRMADA)
   valorTotal  Decimal     @db.Decimal(10, 2)
-  itens       ItemVenda[]
+  status      StatusVenda @default(CONFIRMADA)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  itens       ItemVenda[]
 
   @@map("vendas")
 }
@@ -71,8 +174,15 @@ model ItemVenda {
   quantidade    Int
   precoUnitario Decimal  @db.Decimal(10, 2)
   subtotal      Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
 
   @@map("itens_venda")
+}
+
+enum TipoMovimentacao {
+  ENTRADA
+  SAIDA
+  AJUSTE
 }
 
 model MovimentacaoEstoque {
@@ -81,7 +191,7 @@ model MovimentacaoEstoque {
   produto    Produto          @relation(fields: [produtoId], references: [id])
   tipo       TipoMovimentacao
   quantidade Int
-  motivo     String
+  motivo     String?
   createdAt  DateTime         @default(now())
 
   @@map("movimentacoes_estoque")

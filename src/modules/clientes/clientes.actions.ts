@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ClientesService } from './clientes.service';
 import { CriarClienteSchema, AtualizarClienteSchema } from './clientes.schemas';
+import { tratarErroAction, ActionResult } from '@/src/lib/errors';
 
-export async function criarClienteAction(prevState: any, formData: FormData) {
+export async function criarClienteAction(prevState: any, formData: FormData): Promise<ActionResult> {
   const dadosBrutos = {
     cpfCnpj: formData.get('cpfCnpj') as string,
     nome: formData.get('nome') as string,
@@ -19,25 +20,24 @@ export async function criarClienteAction(prevState: any, formData: FormData) {
   if (!validacao.success) {
     return {
       sucesso: false,
+      tipo: 'VALIDACAO',
       erros: validacao.error.flatten().fieldErrors,
       mensagem: 'Verifique os campos preenchidos.',
+      inputs: dadosBrutos,
     };
   }
 
   try {
     await ClientesService.criar(validacao.data);
-  } catch (error: any) {
-    return {
-      sucesso: false,
-      mensagem: error.message || 'Erro ao cadastrar cliente.',
-    };
+  } catch (error) {
+    return tratarErroAction(error, dadosBrutos);
   }
 
   revalidatePath('/clientes');
   redirect('/clientes');
 }
 
-export async function atualizarClienteAction(prevState: any, formData: FormData) {
+export async function atualizarClienteAction(prevState: any, formData: FormData): Promise<ActionResult> {
   const dadosBrutos = {
     id: formData.get('id') as string,
     cpfCnpj: formData.get('cpfCnpj') as string,
@@ -52,41 +52,40 @@ export async function atualizarClienteAction(prevState: any, formData: FormData)
   if (!validacao.success) {
     return {
       sucesso: false,
+      tipo: 'VALIDACAO',
       erros: validacao.error.flatten().fieldErrors,
       mensagem: 'Verifique os campos preenchidos.',
+      inputs: dadosBrutos,
     };
   }
 
   try {
     const { id, ...dados } = validacao.data;
     await ClientesService.atualizar(id, dados);
-  } catch (error: any) {
-    return {
-      sucesso: false,
-      mensagem: error.message || 'Erro ao atualizar cliente.',
-    };
+  } catch (error) {
+    return tratarErroAction(error, dadosBrutos);
   }
 
   revalidatePath('/clientes');
   redirect('/clientes');
 }
 
-export async function alternarStatusClienteAction(id: string) {
+export async function alternarStatusClienteAction(id: string): Promise<ActionResult> {
   try {
     await ClientesService.alternarStatus(id);
     revalidatePath('/clientes');
     return { sucesso: true };
-  } catch (error: any) {
-    return { sucesso: false, mensagem: error.message };
+  } catch (error) {
+    return tratarErroAction(error);
   }
 }
 
-export async function excluirClienteAction(id: string) {
+export async function excluirClienteAction(id: string): Promise<ActionResult> {
   try {
     await ClientesService.excluir(id);
     revalidatePath('/clientes');
     return { sucesso: true, mensagem: 'Cliente excluído com sucesso.' };
-  } catch (error: any) {
-    return { sucesso: false, mensagem: error.message || 'Erro ao excluir cliente.' };
+  } catch (error) {
+    return tratarErroAction(error);
   }
 }

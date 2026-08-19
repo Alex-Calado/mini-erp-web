@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { criarVendaAction } from '@/src/modules/vendas/vendas.actions';
+import { criarPedidoAction } from '@/src/modules/orders/orders.actions';
 
 interface ClienteOption {
   id: string;
@@ -14,6 +14,7 @@ interface ProdutoOption {
   id: string;
   nome: string;
   codigoSku: string;
+  categoria?: string | null;
   preco: number;
   estoque: number;
 }
@@ -38,10 +39,19 @@ export function FormularioVenda({
 
   const [clienteId, setClienteId] = useState('');
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
+  const [categoriaFiltro, setCategoriaFiltro] = useState('');
   const [produtoSelecionadoId, setProdutoSelecionadoId] = useState('');
   const [quantidadeInput, setQuantidadeInput] = useState(1);
   const [mensagemErro, setMensagemErro] = useState('');
   const [processando, setProcessando] = useState(false);
+
+  const categoriasDisponiveis = Array.from(
+    new Set(produtos.map((p) => p.categoria).filter(Boolean))
+  ) as string[];
+
+  const produtosFiltrados = categoriaFiltro
+    ? produtos.filter((p) => p.categoria === categoriaFiltro)
+    : produtos;
 
   const adicionarItem = () => {
     setMensagemErro('');
@@ -115,18 +125,18 @@ export function FormularioVenda({
     setProcessando(true);
 
     try {
-      const resultado = await criarVendaAction({
-        clienteId,
-        itens: carrinho.map((item) => ({
-          produtoId: item.produtoId,
-          quantidade: item.quantidade,
+      const resultado = await criarPedidoAction({
+        customerId: clienteId,
+        items: carrinho.map((item) => ({
+          productId: item.produtoId,
+          quantity: item.quantidade,
         })),
       });
 
       if (resultado.sucesso) {
         router.push('/vendas');
       } else {
-        setMensagemErro(resultado.mensagem || 'Erro ao processar venda.');
+        setMensagemErro(resultado.mensagem || 'Erro ao processar pedido.');
       }
     } catch (error: any) {
       setMensagemErro('Falha na comunicação com o servidor.');
@@ -176,6 +186,30 @@ export function FormularioVenda({
               2. Adicionar Produtos
             </h2>
 
+            {/* Filtro de Categoria no Pedido */}
+            {categoriasDisponiveis.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Filtrar por Categoria
+                </label>
+                <select
+                  value={categoriaFiltro}
+                  onChange={(e) => {
+                    setCategoriaFiltro(e.target.value);
+                    setProdutoSelecionadoId('');
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs text-slate-900 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Todas as Categorias --</option>
+                  {categoriasDisponiveis.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -187,9 +221,9 @@ export function FormularioVenda({
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">-- Selecione o produto --</option>
-                  {produtos.map((p) => (
+                  {produtosFiltrados.map((p) => (
                     <option key={p.id} value={p.id} disabled={p.estoque === 0}>
-                      {p.nome} (SKU: {p.codigoSku}) - R$ {p.preco.toFixed(2)} [Estoque: {p.estoque} un]
+                      {p.nome} {p.categoria ? `[${p.categoria}]` : ''} (SKU: {p.codigoSku}) - R$ {p.preco.toFixed(2)} [Estoque: {p.estoque} un]
                     </option>
                   ))}
                 </select>

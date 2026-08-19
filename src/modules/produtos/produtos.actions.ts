@@ -3,15 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ProdutosService } from './produtos.service';
-import { CriarProdutoSchema, AjustarEstoqueSchema } from './produtos.schemas';
+import { CriarProdutoSchema, AtualizarProdutoSchema } from './produtos.schemas';
+import { tratarErroAction, ActionResult } from '@/src/lib/errors';
 
-export async function criarProdutoAction(prevState: any, formData: FormData) {
+export async function criarProdutoAction(prevState: any, formData: FormData): Promise<ActionResult> {
   const dadosBrutos = {
     codigoSku: formData.get('codigoSku') as string,
     nome: formData.get('nome') as string,
     descricao: (formData.get('descricao') as string) || undefined,
     preco: formData.get('preco') as string,
     estoque: formData.get('estoque') as string,
+    ativo: formData.get('ativo') !== 'false',
   };
 
   const validacao = CriarProdutoSchema.safeParse(dadosBrutos);
@@ -19,47 +21,73 @@ export async function criarProdutoAction(prevState: any, formData: FormData) {
   if (!validacao.success) {
     return {
       sucesso: false,
+      tipo: 'VALIDACAO',
       erros: validacao.error.flatten().fieldErrors,
       mensagem: 'Verifique os campos do produto.',
+      inputs: dadosBrutos,
     };
   }
 
   try {
     await ProdutosService.criar(validacao.data);
-  } catch (error: any) {
-    return {
-      sucesso: false,
-      mensagem: error.message || 'Erro ao cadastrar produto.',
-    };
+  } catch (error) {
+    return tratarErroAction(error, dadosBrutos);
   }
 
   revalidatePath('/produtos');
   redirect('/produtos');
 }
 
-export async function ajustarEstoqueAction(prevState: any, formData: FormData) {
+export async function atualizarProdutoAction(prevState: any, formData: FormData): Promise<ActionResult> {
   const dadosBrutos = {
-    produtoId: formData.get('produtoId') as string,
-    tipo: formData.get('tipo') as string,
-    quantidade: formData.get('quantidade') as string,
-    motivo: formData.get('motivo') as string,
+    id: formData.get('id') as string,
+    codigoSku: formData.get('codigoSku') as string,
+    nome: formData.get('nome') as string,
+    descricao: (formData.get('descricao') as string) || undefined,
+    preco: formData.get('preco') as string,
+    estoque: formData.get('estoque') as string,
+    ativo: formData.get('ativo') === 'true' || formData.get('ativo') === 'on',
   };
 
-  const validacao = AjustarEstoqueSchema.safeParse(dadosBrutos);
+  const validacao = AtualizarProdutoSchema.safeParse(dadosBrutos);
 
   if (!validacao.success) {
     return {
       sucesso: false,
-      mensagem: 'Dados de ajuste de estoque inválidos.',
+      tipo: 'VALIDACAO',
+      erros: validacao.error.flatten().fieldErrors,
+      mensagem: 'Verifique os campos do produto.',
+      inputs: dadosBrutos,
     };
   }
 
   try {
-    await ProdutosService.ajustarEstoque(validacao.data);
+    const { id, ...dados } = validacao.data;
+    await ProdutosService.atualizar(id, dados);
+  } catch (error) {
+    return tratarErroAction(error, dadosBrutos);
+  }
+
+  revalidatePath('/produtos');
+  redirect('/produtos');
+}
+
+export async function alternarStatusProdutoAction(id: string): Promise<ActionResult> {
+  try {
+    await ProdutosService.alternarStatus(id);
     revalidatePath('/produtos');
-    revalidatePath(`/produtos/${validacao.data.produtoId}`);
-    return { sucesso: true, mensagem: 'Estoque atualizado com sucesso!' };
-  } catch (error: any) {
-    return { sucesso: false, mensagem: error.message || 'Erro ao ajustar estoque.' };
+    return { sucesso: true };
+  } catch (error) {
+    return tratarErroAction(error);
+  }
+}
+
+export async function excluirProdutoAction(id: string): Promise<ActionResult> {
+  try {
+    await ProdutosService.excluir(id);
+    revalidatePath('/produtos');
+    return { sucesso: true, mensagem: 'Produto excluído com sucesso.' };
+  } catch (error) {
+    return tratarErroAction(error);
   }
 }

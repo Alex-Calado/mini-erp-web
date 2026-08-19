@@ -20,8 +20,8 @@ export default function FormularioNovoCliente() {
         </p>
 
         {state?.mensagem && !state?.sucesso && (
-          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg">
-            {state.mensagem}
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg font-medium">
+            ⚠️ {state.mensagem}
           </div>
         )}
 
@@ -33,6 +33,8 @@ export default function FormularioNovoCliente() {
             <input
               type="text"
               name="cpfCnpj"
+              key={`cpf-${state?.inputs?.cpfCnpj ?? ''}`}
+              defaultValue={state?.inputs?.cpfCnpj ?? ''}
               required
               placeholder="Ex: 12.345.678/0001-90"
               className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
@@ -49,6 +51,8 @@ export default function FormularioNovoCliente() {
             <input
               type="text"
               name="nome"
+              key={`nome-${state?.inputs?.nome ?? ''}`}
+              defaultValue={state?.inputs?.nome ?? ''}
               required
               placeholder="Ex: Empresa Alfa Ltda"
               className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
@@ -65,6 +69,8 @@ export default function FormularioNovoCliente() {
             <input
               type="email"
               name="email"
+              key={`email-${state?.inputs?.email ?? ''}`}
+              defaultValue={state?.inputs?.email ?? ''}
               placeholder="exemplo@empresa.com"
               className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -80,6 +86,8 @@ export default function FormularioNovoCliente() {
             <input
               type="text"
               name="telefone"
+              key={`tel-${state?.inputs?.telefone ?? ''}`}
+              defaultValue={state?.inputs?.telefone ?? ''}
               placeholder="(11) 99999-9999"
               className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
             />

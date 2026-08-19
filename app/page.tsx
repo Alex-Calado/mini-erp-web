@@ -1,78 +1,82 @@
 import Link from 'next/link';
-import { ClientesService } from '@/src/modules/clientes/clientes.service';
-import { ProdutosService } from '@/src/modules/produtos/produtos.service';
-import { VendasService } from '@/src/modules/vendas/vendas.service';
+import { DashboardService } from '@/src/modules/dashboard/dashboard.service';
+import { exigirSessaoServidor } from '@/src/lib/session';
 
 export default async function DashboardPage() {
-  let clientes: Awaited<ReturnType<typeof ClientesService.listar>> = [];
-  let produtos: Awaited<ReturnType<typeof ProdutosService.listar>> = [];
-  let vendas: Awaited<ReturnType<typeof VendasService.listar>> = [];
+  await exigirSessaoServidor();
+
+  let metricas = {
+    clientesAtivos: 0,
+    produtosAtivos: 0,
+    quantidadePedidos: 0,
+    faturamentoTotal: 0,
+    pedidosRecentes: [] as Awaited<ReturnType<typeof DashboardService.obterMetricas>>['pedidosRecentes'],
+  };
 
   try {
-    clientes = await ClientesService.listar();
-    produtos = await ProdutosService.listar();
-    vendas = await VendasService.listar();
+    metricas = await DashboardService.obterMetricas();
   } catch (error) {
-    console.error('Erro ao carregar dados do Dashboard:', error);
+    console.error('Erro ao carregar agregações do Dashboard:', error);
   }
-
-  const faturamentoTotal = vendas
-    .filter((v) => v.status === 'CONFIRMADA')
-    .reduce((acc, v) => acc + Number(v.valorTotal), 0);
-
-  const produtosEstoqueBaixo = produtos.filter((p) => p.estoque < 5);
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       {/* Header do Dashboard */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Visão Geral - Dashboard ERP</h1>
-        <p className="text-slate-500 text-sm">Resumo operacional, vendas e alertas de estoque</p>
+        <p className="text-slate-500 text-sm">Agregações em tempo real processadas no banco de dados</p>
       </div>
 
-      {/* Cards de Métricas */}
+      {/* Cards de Métricas Solicitadas (Agregações no Banco) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Faturamento */}
+        {/* Card 1: Clientes Ativos */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faturamento Total</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Clientes Ativos</p>
+          <p className="text-2xl font-extrabold text-blue-600">
+            {metricas.clientesAtivos}
+          </p>
+          <p className="text-xs text-slate-400">Ativos na base</p>
+        </div>
+
+        {/* Card 2: Produtos Ativos */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Produtos Ativos</p>
+          <p className="text-2xl font-extrabold text-indigo-600">
+            {metricas.produtosAtivos}
+          </p>
+          <p className="text-xs text-slate-400">Produtos no catálogo</p>
+        </div>
+
+        {/* Card 3: Quantidade de Pedidos */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quantidade de Pedidos</p>
+          <p className="text-2xl font-extrabold text-slate-900">
+            {metricas.quantidadePedidos}
+          </p>
+          <p className="text-xs text-slate-400">Pedidos cadastrados</p>
+        </div>
+
+        {/* Card 4: Faturamento */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faturamento</p>
           <p className="text-2xl font-extrabold text-emerald-600">
-            R$ {faturamentoTotal.toFixed(2)}
+            R$ {metricas.faturamentoTotal.toFixed(2)}
           </p>
-          <p className="text-xs text-slate-400">Vendas confirmadas</p>
-        </div>
-
-        {/* Card 2: Vendas */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Vendas Realizadas</p>
-          <p className="text-2xl font-extrabold text-slate-900">{vendas.length}</p>
-          <p className="text-xs text-slate-400">Pedidos registrados</p>
-        </div>
-
-        {/* Card 3: Clientes */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Clientes</p>
-          <p className="text-2xl font-extrabold text-slate-900">{clientes.length}</p>
-          <p className="text-xs text-slate-400">Clientes na base</p>
-        </div>
-
-        {/* Card 4: Alerta Estoque */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Alertas de Estoque</p>
-          <p className={`text-2xl font-extrabold ${produtosEstoqueBaixo.length > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
-            {produtosEstoqueBaixo.length}
-          </p>
-          <p className="text-xs text-slate-400">Produtos &lt; 5 unidades</p>
+          <p className="text-xs text-slate-400">Pedidos confirmados</p>
         </div>
       </div>
 
-      {/* Seção Principal: Atalhos e Tabelas */}
+      {/* Seção Principal: 10 Pedidos Recentes e Ações Rápidas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lado Esquerdo: Últimas Vendas */}
+        {/* Lado Esquerdo: 10 Pedidos Recentes */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-            <h2 className="font-bold text-slate-900 text-sm">Últimas Vendas Emitidas</h2>
+            <div>
+              <h2 className="font-bold text-slate-900 text-sm">10 Pedidos Recentes</h2>
+              <p className="text-slate-400 text-xs">Busca otimizada no banco via ordenação e limite</p>
+            </div>
             <Link href="/vendas" className="text-xs text-blue-600 font-semibold hover:underline">
-              Ver todas →
+              Ver todos →
             </Link>
           </div>
 
@@ -82,30 +86,38 @@ export default async function DashboardPage() {
                 <th className="p-3">#</th>
                 <th className="p-3">Cliente</th>
                 <th className="p-3 text-right">Valor Total</th>
+                <th className="p-3 text-center">Data</th>
                 <th className="p-3 text-center">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {vendas.length === 0 ? (
+              {metricas.pedidosRecentes.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-slate-400">
-                    Nenhuma venda realizada.{' '}
+                  <td colSpan={5} className="p-6 text-center text-slate-400">
+                    Nenhum pedido realizado.{' '}
                     <Link href="/vendas/nova" className="text-blue-600 underline font-medium">
-                      Emitir primeira venda
+                      Emitir primeiro pedido
                     </Link>
                   </td>
                 </tr>
               ) : (
-                vendas.slice(0, 5).map((venda) => (
-                  <tr key={venda.id} className="hover:bg-slate-50">
-                    <td className="p-3 font-mono font-bold text-slate-900">#{venda.numeroVenda}</td>
-                    <td className="p-3 font-medium text-slate-900">{venda.cliente.nome}</td>
-                    <td className="p-3 text-right font-bold text-emerald-700">R$ {Number(venda.valorTotal).toFixed(2)}</td>
+                metricas.pedidosRecentes.map((order) => (
+                  <tr key={order.id} className="hover:bg-slate-50">
+                    <td className="p-3 font-mono font-bold text-slate-900">#{order.id.substring(0, 8)}</td>
+                    <td className="p-3 font-medium text-slate-900">{order.customer.nome}</td>
+                    <td className="p-3 text-right font-bold text-emerald-700">R$ {order.total.toFixed(2)}</td>
+                    <td className="p-3 text-center text-slate-500">
+                      {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                    </td>
                     <td className="p-3 text-center">
-                      <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                        venda.status === 'CONFIRMADA' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                      }`}>
-                        {venda.status}
+                      <span
+                        className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                          order.status === 'CONFIRMED'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-rose-50 text-rose-700'
+                        }`}
+                      >
+                        {order.status}
                       </span>
                     </td>
                   </tr>
@@ -115,7 +127,7 @@ export default async function DashboardPage() {
           </table>
         </div>
 
-        {/* Lado Direito: Ações Rápidas e Estoque Crítico */}
+        {/* Lado Direito: Ações Rápidas */}
         <div className="space-y-6">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-3">
             <h2 className="font-bold text-slate-900 text-sm">Ações Rápidas</h2>
@@ -124,7 +136,7 @@ export default async function DashboardPage() {
                 href="/vendas/nova"
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-3 rounded-lg text-xs text-center transition-colors shadow-xs flex items-center justify-center gap-2"
               >
-                <span>🛒</span> Nova Venda
+                <span>🛒</span> Novo Pedido
               </Link>
               <Link
                 href="/clientes/novo"
@@ -139,24 +151,6 @@ export default async function DashboardPage() {
                 <span>📦</span> Cadastrar Produto
               </Link>
             </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-3">
-            <h2 className="font-bold text-slate-900 text-sm">Produtos com Estoque Crítico</h2>
-            {produtosEstoqueBaixo.length === 0 ? (
-              <p className="text-xs text-slate-400">Todos os produtos estão com estoque regular.</p>
-            ) : (
-              <div className="space-y-2 divide-y divide-slate-100">
-                {produtosEstoqueBaixo.map((p) => (
-                  <div key={p.id} className="pt-2 flex justify-between items-center text-xs">
-                    <span className="font-medium text-slate-800">{p.nome}</span>
-                    <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                      {p.estoque} un
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>

@@ -1,78 +1,102 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { auth } from '../src/lib/auth';
+import { prisma } from '../src/db/prisma';
 
 async function main() {
-  console.log('🌱 Semeando dados iniciais no PostgreSQL...');
+  console.log('Executando seed do banco de dados...');
 
-  // Criar Clientes Iniciais
-  const cliente1 = await prisma.cliente.upsert({
-    where: { cpfCnpj: '12.345.678/0001-90' },
-    update: {},
-    create: {
-      cpfCnpj: '12.345.678/0001-90',
-      nome: 'Empresa Alfa Soluções Ltda',
-      email: 'contato@alfa.com.br',
-      telefone: '(11) 98888-1111',
-    },
+  const adminEmail = 'admin@minierp.com';
+  
+  const existingUser = await prisma.user.findUnique({
+    where: { email: adminEmail },
+    include: { accounts: true },
   });
 
-  const cliente2 = await prisma.cliente.upsert({
-    where: { cpfCnpj: '98.765.432/0001-10' },
-    update: {},
-    create: {
-      cpfCnpj: '98.765.432/0001-10',
-      nome: 'Comércio Beta S/A',
-      email: 'vendas@comerciobeta.com',
-      telefone: '(21) 97777-2222',
-    },
+  if (existingUser && existingUser.accounts.length === 0) {
+    console.log('Removendo usuário sem conta de senha...');
+    await prisma.user.delete({ where: { id: existingUser.id } });
+  }
+
+  const userAtual = await prisma.user.findUnique({
+    where: { email: adminEmail },
   });
 
-  // Criar Produtos Iniciais
-  const prod1 = await prisma.produto.upsert({
-    where: { codigoSku: 'PROD-001' },
-    update: {},
-    create: {
-      codigoSku: 'PROD-001',
-      nome: 'Monitor LED 27" Full HD',
-      descricao: 'Monitor com painel IPS e 75Hz de taxa de atualização',
-      preco: 899.90,
-      estoque: 15,
-    },
-  });
+  if (!userAtual) {
+    console.log('Criando usuário administrador padrão (admin@minierp.com / admin123)...');
+    await auth.api.signUpEmail({
+      body: {
+        email: adminEmail,
+        password: 'admin123',
+        name: 'Operador ERP',
+      },
+    });
+    console.log('Usuário admin criado com sucesso!');
+  } else {
+    console.log('Usuário admin já cadastrado e ativo.');
+  }
 
-  const prod2 = await prisma.produto.upsert({
-    where: { codigoSku: 'PROD-002' },
-    update: {},
-    create: {
-      codigoSku: 'PROD-002',
-      nome: 'Teclado Mecânico Wireless',
-      descricao: 'Teclado com switches azuis e retroiluminação RGB',
-      preco: 349.00,
-      estoque: 8,
-    },
-  });
+  const countClientes = await prisma.cliente.count();
+  if (countClientes === 0) {
+    await prisma.cliente.createMany({
+      data: [
+        {
+          nome: 'Empresa Alfa Ltda',
+          cpfCnpj: '12345678000190',
+          email: 'contato@alfa.com.br',
+          telefone: '(11) 98888-7777',
+          ativo: true,
+        },
+        {
+          nome: 'João Silva',
+          cpfCnpj: '11122233344',
+          email: 'joao.silva@email.com',
+          telefone: '(21) 97777-6666',
+          ativo: true,
+        },
+      ],
+    });
+  }
 
-  const prod3 = await prisma.produto.upsert({
-    where: { codigoSku: 'PROD-003' },
-    update: {},
-    create: {
-      codigoSku: 'PROD-003',
-      nome: 'Mouse Gamer 16000 DPI',
-      descricao: 'Mouse ergonômico com 6 botões programáveis',
-      preco: 189.50,
-      estoque: 3,
-    },
-  });
+  const countProdutos = await prisma.produto.count();
+  if (countProdutos === 0) {
+    await prisma.produto.createMany({
+      data: [
+        {
+          codigoSku: 'PROD-001',
+          nome: 'Notebook Dell Vostro',
+          descricao: 'Processador i7, 16GB RAM, 512GB SSD',
+          categoria: 'Informática',
+          preco: 4500.0,
+          estoque: 10,
+          ativo: true,
+        },
+        {
+          codigoSku: 'PROD-002',
+          nome: 'Mouse Sem Fio Logitech',
+          descricao: 'Ergonomico com sensor de alta precisao',
+          categoria: 'Periféricos',
+          preco: 120.5,
+          estoque: 35,
+          ativo: true,
+        },
+        {
+          codigoSku: 'PROD-003',
+          nome: 'Teclado Mecanico RGB',
+          descricao: 'Switches azuis e retroiluminacao customizavel',
+          categoria: 'Periféricos',
+          preco: 350.0,
+          estoque: 3,
+          ativo: true,
+        },
+      ],
+    });
+  }
 
-  console.log('✅ Dados de teste cadastrados com sucesso!');
-  console.log(`- Clientes: ${cliente1.nome}, ${cliente2.nome}`);
-  console.log(`- Produtos: ${prod1.nome}, ${prod2.nome}, ${prod3.nome}`);
+  console.log('Seed concluído com sucesso!');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Erro durante o seed:', e);
     process.exit(1);
   })
   .finally(async () => {

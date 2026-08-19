@@ -1,20 +1,73 @@
 import { prisma } from '@/src/db/prisma';
+import { AppError } from '@/src/lib/errors';
 import { CriarClienteInput, AtualizarClienteInput } from './clientes.schemas';
 
+export interface ListarClientesParams {
+  busca?: string;
+  status?: 'todos' | 'ativo' | 'inativo';
+  pagina?: number;
+  limite?: number;
+}
+
 export class ClientesService {
+  static async listarPaginado({
+    busca,
+    status = 'todos',
+    pagina = 1,
+    limite = 20,
+  }: ListarClientesParams = {}) {
+    const pageNumber = Math.max(1, pagina);
+    const pageSize = Math.max(1, limite);
+    const skip = (pageNumber - 1) * pageSize;
+
+    const condicaoStatus =
+      status === 'ativo'
+        ? { ativo: true }
+        : status === 'inativo'
+        ? { ativo: false }
+        : undefined;
+
+    const condicaoBusca = busca
+      ? {
+          OR: [
+            { nome: { contains: busca, mode: 'insensitive' as const } },
+            { cpfCnpj: { contains: busca, mode: 'insensitive' as const } },
+            { email: { contains: busca, mode: 'insensitive' as const } },
+          ],
+        }
+      : undefined;
+
+    const where = {
+      AND: [
+        condicaoStatus || {},
+        condicaoBusca || {},
+      ],
+    };
+
+    const [itens, total] = await Promise.all([
+      prisma.cliente.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      prisma.cliente.count({ where }),
+    ]);
+
+    const totalPaginas = Math.ceil(total / pageSize) || 1;
+
+    return {
+      itens,
+      total,
+      pagina: pageNumber,
+      limite: pageSize,
+      totalPaginas,
+    };
+  }
+
   static async listar(busca?: string) {
-    return prisma.cliente.findMany({
-      where: busca
-        ? {
-            OR: [
-              { nome: { contains: busca, mode: 'insensitive' } },
-              { cpfCnpj: { contains: busca } },
-              { email: { contains: busca, mode: 'insensitive' } },
-            ],
-          }
-        : undefined,
-      orderBy: { createdAt: 'desc' },
-    });
+    const res = await this.listarPaginado({ busca, limite: 100 });
+    return res.itens;
   }
 
   static async obterPorId(id: string) {
@@ -29,7 +82,7 @@ export class ClientesService {
     });
 
     if (clienteExistente) {
-      throw new Error('Já existe um cliente cadastrado com este CPF/CNPJ.');
+      throw new AppError('Já existe um cliente cadastrado com este CPF/CNPJ.', 'CONFLITO');
     }
 
     return prisma.cliente.create({
@@ -44,7 +97,6 @@ export class ClientesService {
   }
 
   static async atualizar(id: string, dados: Omit<AtualizarClienteInput, 'id'>) {
-    // Verificar se existe outro cliente usando o mesmo CPF/CNPJ
     const duplicado = await prisma.cliente.findFirst({
       where: {
         cpfCnpj: dados.cpfCnpj,
@@ -53,7 +105,7 @@ export class ClientesService {
     });
 
     if (duplicado) {
-      throw new Error('Este CPF/CNPJ já está cadastrado em outro cliente.');
+      throw new AppError('Este CPF/CNPJ já está cadastrado em outro cliente.', 'CONFLITO');
     }
 
     return prisma.cliente.update({
@@ -70,7 +122,9 @@ export class ClientesService {
 
   static async alternarStatus(id: string) {
     const cliente = await this.obterPorId(id);
-    if (!cliente) throw new Error('Cliente não encontrado.');
+    if (!cliente) {
+      throw new AppError('Cliente não encontrado.', 'NAO_ENCONTRADO');
+    }
 
     return prisma.cliente.update({
       where: { id },
@@ -89,11 +143,11 @@ export class ClientesService {
     });
 
     if (!cliente) {
-      throw new Error('Cliente não encontrado.');
+      throw new AppError('Cliente não encontrado.', 'NAO_ENCONTRADO');
     }
 
     if (cliente._count.vendas > 0) {
-      throw new Error('Não é possível excluir um cliente que já possui vendas vinculadas.');
+      throw new AppError('Não é possível excluir um cliente que já possui vendas vinculadas.', 'REGRA_NEGOCIO');
     }
 
     return prisma.cliente.delete({
