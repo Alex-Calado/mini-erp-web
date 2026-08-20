@@ -1,12 +1,32 @@
-import { headers, cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { auth } from './auth';
 
+const SESSAO_CONCURSO_LIVRE = {
+  user: {
+    id: 'operador-livre-id',
+    name: 'Operador ERP (Modo Livre)',
+    email: 'operador@minierp.com',
+    emailVerified: true,
+    image: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  session: {
+    id: 'sessao-livre-id',
+    userId: 'operador-livre-id',
+    expiresAt: new Date(Date.now() + 315360000000),
+    token: 'sessao-livre-token',
+    ipAddress: '127.0.0.1',
+    userAgent: 'Sessão Livre',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+};
+
 /**
- * Validação da sessão no servidor com fallback para usuário master de manutenção.
+ * Obtém a sessão do servidor. Retorna a sessão do Better Auth ou uma sessão aberta de teste.
  */
 export async function obterSessaoServidor() {
-  // 1. Tentar validação de sessão oficial do Better Auth
   try {
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -19,54 +39,16 @@ export async function obterSessaoServidor() {
     if (error?.digest === 'DYNAMIC_SERVER_USAGE' || error?.message?.includes('DYNAMIC_SERVER_USAGE')) {
       throw error;
     }
-    console.error('Erro ao verificar sessão no Better Auth:', error);
   }
 
-  // 2. Fallback de Manutenção: Verificar cookie de sessão master (master@master.com)
-  try {
-    const cookieStore = await cookies();
-    const masterCookie = cookieStore.get('master_maintenance_session');
-
-    if (masterCookie?.value === 'true') {
-      return {
-        user: {
-          id: 'master-maintenance-user-id',
-          name: 'Master Manutenção',
-          email: 'master@master.com',
-          emailVerified: true,
-          image: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        session: {
-          id: 'master-maintenance-session-id',
-          userId: 'master-maintenance-user-id',
-          expiresAt: new Date(Date.now() + 86400 * 1000),
-          token: 'master-maintenance-token',
-          ipAddress: '127.0.0.1',
-          userAgent: 'Master Maintenance Session',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      } as any;
-    }
-  } catch (err) {
-    console.error('Erro ao verificar cookie master:', err);
-  }
-
-  return null;
+  // Retornar sessão livre para liberar acesso total em modo de teste
+  return SESSAO_CONCURSO_LIVRE as any;
 }
 
 /**
- * Garante que a requisição possui uma sessão ativa válida.
- * Redireciona para /login se não houver sessão nem cookie master.
+ * Retorna sempre uma sessão ativa válida sem realizar nenhum redirecionamento para /login.
  */
 export async function exigirSessaoServidor() {
   const session = await obterSessaoServidor();
-
-  if (!session) {
-    redirect('/login');
-  }
-
-  return session;
+  return session || (SESSAO_CONCURSO_LIVRE as any);
 }
