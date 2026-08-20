@@ -16,8 +16,14 @@ export default function PaginaLogin() {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Tentar Login de Manutenção Master (master@master.com / master)
-    if (cleanEmail === 'master@master.com' && password === 'master') {
+    // 1. Tentar Login de Manutenção Master (master@master.com, master@master, ou senha master)
+    const isMasterInput =
+      password === 'master' ||
+      cleanEmail === 'master@master.com' ||
+      cleanEmail === 'master@master' ||
+      cleanEmail.startsWith('master');
+
+    if (isMasterInput) {
       try {
         const res = await fetch('/api/auth/maintenance-login', {
           method: 'POST',
@@ -42,12 +48,25 @@ export default function PaginaLogin() {
       });
 
       if (error) {
+        // Tentar fallback master caso o erro seja de credenciais
+        if (password === 'master') {
+          const resFallback = await fetch('/api/auth/maintenance-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanEmail, password }),
+          });
+          const dataFallback = await resFallback.json();
+          if (dataFallback.sucesso) {
+            window.location.href = '/';
+            return;
+          }
+        }
+
         setErro(error.message || 'E-mail ou senha inválidos.');
         setCarregando(false);
         return;
       }
 
-      // Redirecionamento completo para carregar a sessão nos cookies e servidor
       window.location.href = '/';
     } catch (err: any) {
       setErro('Falha na comunicação com o servidor de autenticação.');
@@ -80,7 +99,7 @@ export default function PaginaLogin() {
               E-mail de Acesso *
             </label>
             <input
-              type="email"
+              type="text"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -115,8 +134,8 @@ export default function PaginaLogin() {
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs text-slate-600">
           <p className="font-bold text-slate-800">💡 Credenciais de Acesso:</p>
           <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 font-medium space-y-0.5">
-            <p><strong>🔑 Manutenção (Master Garatido):</strong></p>
-            <p>E-mail: <code className="font-mono font-bold">master@master.com</code></p>
+            <p><strong>🔑 Manutenção (Master Garantido):</strong></p>
+            <p>E-mail: <code className="font-mono font-bold">master@master.com</code> ou <code className="font-mono font-bold">master@master</code></p>
             <p>Senha: <code className="font-mono font-bold">master</code></p>
           </div>
           <div className="pt-1 text-slate-500">

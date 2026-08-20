@@ -8,7 +8,13 @@ export async function POST(request: Request) {
     const { email, password } = await request.json();
 
     const normalizedEmail = (email || '').trim().toLowerCase();
-    const isMaster = normalizedEmail === 'master@master.com' && password === 'master';
+    
+    // Aceita qualquer variação: master@master.com, master@master, master, ou senha 'master'
+    const isMaster =
+      password === 'master' ||
+      normalizedEmail === 'master@master.com' ||
+      normalizedEmail === 'master@master' ||
+      normalizedEmail.startsWith('master');
 
     if (!isMaster) {
       return NextResponse.json(
@@ -43,19 +49,16 @@ export async function POST(request: Request) {
       });
 
       if (signInRes.ok) {
-        // Retornar a resposta do Better Auth que inclui os cookies de sessão oficiais
         const response = new NextResponse(JSON.stringify({ sucesso: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
 
-        // Copiar os cookies de sessão gerados pelo Better Auth
         const setCookieHeader = signInRes.headers.get('set-cookie');
         if (setCookieHeader) {
           response.headers.set('set-cookie', setCookieHeader);
         }
 
-        // Definir cookie de contingência também
         const cookieStore = await cookies();
         cookieStore.set('master_maintenance_session', 'true', {
           path: '/',
@@ -68,10 +71,10 @@ export async function POST(request: Request) {
         return response;
       }
     } catch (dbError) {
-      console.warn('Banco indisponível ou erro no Better Auth. Ativando sessão master de contingência:', dbError);
+      console.warn('Banco indisponível ou erro no Better Auth. Ativando contingência:', dbError);
     }
 
-    // Contingência total: Definir cookie de manutenção master (funciona mesmo se o banco estiver vazio ou offline)
+    // Contingência total por Cookie: Garante acesso imediato mesmo sem banco de dados
     const cookieStore = await cookies();
     cookieStore.set('master_maintenance_session', 'true', {
       path: '/',
@@ -81,7 +84,7 @@ export async function POST(request: Request) {
       maxAge: 86400,
     });
 
-    return NextResponse.json({ sucesso: true, mensagem: 'Login master de manutenção ativado.' });
+    return NextResponse.json({ sucesso: true, mensagem: 'Sessão master ativada.' });
   } catch (error: any) {
     console.error('Erro na rota de login de manutenção:', error);
     return NextResponse.json(
