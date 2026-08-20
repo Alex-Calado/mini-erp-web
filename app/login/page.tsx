@@ -14,9 +14,30 @@ export default function PaginaLogin() {
     setErro('');
     setCarregando(true);
 
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Tentar Login de Manutenção Master (master@master.com / master)
+    if (cleanEmail === 'master@master.com' && password === 'master') {
+      try {
+        const res = await fetch('/api/auth/maintenance-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, password }),
+        });
+        const data = await res.json();
+        if (data.sucesso) {
+          window.location.href = '/';
+          return;
+        }
+      } catch (err) {
+        console.error('Erro ao efetuar login de manutenção master:', err);
+      }
+    }
+
+    // 2. Tentar Login Padrão via Better Auth
     try {
       const { data, error } = await authClient.signIn.email({
-        email,
+        email: cleanEmail,
         password,
       });
 
@@ -63,7 +84,7 @@ export default function PaginaLogin() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@minierp.com"
+              placeholder="master@master.com ou admin@minierp.com"
               className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -91,10 +112,16 @@ export default function PaginaLogin() {
           </button>
         </form>
 
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs text-slate-600">
-          <p className="font-bold text-slate-800">💡 Credenciais Padrão de Teste:</p>
-          <p><strong className="text-slate-700">E-mail:</strong> admin@minierp.com</p>
-          <p><strong className="text-slate-700">Senha:</strong> admin123</p>
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs text-slate-600">
+          <p className="font-bold text-slate-800">💡 Credenciais de Acesso:</p>
+          <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 font-medium space-y-0.5">
+            <p><strong>🔑 Manutenção (Master Garatido):</strong></p>
+            <p>E-mail: <code className="font-mono font-bold">master@master.com</code></p>
+            <p>Senha: <code className="font-mono font-bold">master</code></p>
+          </div>
+          <div className="pt-1 text-slate-500">
+            <p><strong>Operador Padrão:</strong> admin@minierp.com / admin123</p>
+          </div>
         </div>
       </div>
     </div>

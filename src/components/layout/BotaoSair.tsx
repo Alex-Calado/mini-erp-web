@@ -7,7 +7,13 @@ export function BotaoSair() {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    await authClient.signOut();
+    try {
+      // Limpar cookie de manutenção se existir
+      document.cookie = 'master_maintenance_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+      await authClient.signOut();
+    } catch (err) {
+      console.error('Erro ao efetuar logout:', err);
+    }
     router.push('/login');
     router.refresh();
   };
